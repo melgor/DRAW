@@ -2,6 +2,7 @@
 -- @Date:   2015-12-08 14:10:59
 -- @Last Modified by:   blcv
 -- @Last Modified time: 2015-12-10 09:37:57
+--LSTM code from http://apaszke.github.io/lstm-explained.html
 require 'nn'
 require 'nngraph'
 
