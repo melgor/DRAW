@@ -39,12 +39,14 @@ function genrFilters(g, ascending, size_image, size_attention, sigma, gamma, bat
       d_i = nn.Power(2)(d_i)
       exp_i = nn.CMulTable()({d_i, sigma})
       exp_i = nn.Exp()(exp_i)
-      exp_i = nn.View(batchSize, 1, size_image)(exp_i)
-      filters[#filters + 1] = nn.CMulTable()({exp_i, gamma})
+      fil   = nn.CMulTable()({exp_i, gamma})
+      -- fil = nn.View(batchSize, size_image)(fil)
+      -- fil = nn.Normalize(1)(fil)
+      fil = nn.View(batchSize, 1, size_image)(fil)
+      filters[#filters + 1] = fil
   end
   filterbank = nn.JoinTable(2)(filters)
   --TODO: normalize filter to Sum[filterbank]=1
---   filterbank = nn.Sum(1,)
   return filterbank
 end
 

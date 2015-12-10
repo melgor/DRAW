@@ -1,7 +1,7 @@
 -- @Author: blcv
 -- @Date:   2015-12-08 14:23:00
 -- @Last Modified by:   blcv
--- @Last Modified time: 2015-12-10 10:02:58
+-- @Last Modified time: 2015-12-10 19:42:59
 package.path = "draw_nngraph/?.lua;" .. package.path
 require 'nn'
 require 'nngraph'

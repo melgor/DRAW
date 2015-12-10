@@ -1,10 +1,9 @@
--- require 'mobdebug'.start()
-
 require 'nn'
 require 'cunn'
 require 'nngraph'
 require 'optim'
 require 'image'
+-- nngraph.setDebug(true)
 local model_utils=require 'model_utils'
 local mnist = require 'mnist'
 local LSTM = require 'draw_nngraph.lstm'
@@ -13,7 +12,6 @@ local WRITE = require 'draw_nngraph.write'
 local QSampler = require 'draw_nngraph.qsampler'
 local LOSS_X = require 'draw_nngraph.loss_x'
 local c = require 'trepl.colorize'
--- nngraph.setDebug(true)
 
 
 cmd = torch.CmdLine()
@@ -37,7 +35,7 @@ cmd:option('-clipGradient',       5,                       'gradient clipping va
 
 cmd:text('===>Platform Optimization')
 cmd:option('-threads',            8,                        'number of threads')
--- cmd:option('-type',               'cuda',                   'float or cuda')
+cmd:option('-type',               'cuda',                   'float or cuda')
 cmd:option('-devid',              1,                        'device ID (if using CUDA)')
 
 
@@ -51,6 +49,7 @@ cmd:option('-attenWriteSize',        3,                     'size of glimpse whi
 
 opt = cmd:parse(arg or {})
 print(opt)
+cmd:log(opt.saveFolder .. '/Log.txt', opt)
 torch.setnumthreads(opt.threads)
 torch.manualSeed(opt.seed)
 torch.setdefaulttensortype('torch.FloatTensor')
@@ -101,7 +100,6 @@ end
 decoder.name = 'decoder'
 
 
-
 print ("Model build")
 
 
@@ -110,6 +108,7 @@ print ("Model build")
 trainset = mnist.traindataset()
 -- testset = mnist.testdataset()
 
+--get parameters from all modules and copy them seqSize times (need to remember the internal state during back-propagate)
 params, grad_params = model_utils.combine_all_parameters(encoder[1], encoder[2], encoder[3], decoder[1], decoder[2], decoder[3])
 encoder_clones = model_utils.clone_many_times_multiple_nngraph(encoder, opt.seqSize)
 decoder_clones = model_utils.clone_many_times_multiple_nngraph(decoder, opt.seqSize)
@@ -123,8 +122,14 @@ end
 
 ------------------------------------------------------------------------
 -- optimization loop
---
-optim_state = {learningRate = opt.LR}
+local optim_state = {
+    learningRate = opt.LR,
+    momentum = opt.momentum,
+    weightDecay = opt.weightDecay,
+    learningRateDecay = opt.LRDecay
+}
+OptFunction = _G.optim[opt.optimization]
+
 epoch = 0
 while epoch ~= opt.epoch do
   print(c.blue '==>'.." online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
@@ -162,7 +167,6 @@ while epoch ~= opt.epoch do
         x = {}
         patch = {}
         read_input = {}
-        
         
         local loss = 0
 
@@ -203,13 +207,11 @@ while epoch ~= opt.epoch do
         de = {}
         dpatch = {}
         dread_input = {}
-        
         for t = opt.seqSize,1,-1 do
           dloss_x[t] = torch.ones(opt.batchSize, 1)
           dloss_z[t] = torch.ones(opt.batchSize, 1)
           dx_prediction[t] = torch.zeros(opt.batchSize, opt.sizeImage, opt.sizeImage)
-          dpatch[t] = torch.zeros(opt.batchSize, opt.attenWriteSize, opt.attenWriteSize) --TODO: Not sure if should be Read or Write Size
-
+          dpatch[t] = torch.zeros(opt.batchSize, opt.attenReadSize, opt.attenReadSize) --TODO: Not sure if should be Read or Write Size
           --decoder
           dcanvas2[t],dx1[t]                          = unpack(decoder_clones[t][3]:backward({canvas[t],x[t]},{dloss_x[t],dx_prediction[t],dx_error[t]}))
           --merge gradient from canvas
@@ -231,7 +233,8 @@ while epoch ~= opt.epoch do
         grad_params:clamp(-opt.clipGradient, opt.clipGradient)
         return loss, grad_params
     end
-    _, loss = optim.adagrad(feval, params, optim_state)
+    _, loss = OptFunction(feval, params, optim_state)
+    collectgarbage()
   end
   print(string.format("epoch %4d, loss = %6.6f, time: %.2f s'", epoch, loss[1],  torch.toc(tic)))
   epoch = epoch + 1
