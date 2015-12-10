@@ -40,8 +40,8 @@ function genrFilters(g, ascending, size_image, size_attention, sigma, gamma, bat
       exp_i = nn.CMulTable()({d_i, sigma})
       exp_i = nn.Exp()(exp_i)
       fil   = nn.CMulTable()({exp_i, gamma})
-      -- fil = nn.View(batchSize, size_image)(fil)
-      -- fil = nn.Normalize(1)(fil)
+      fil = nn.View(batchSize, size_image)(fil)
+      fil = nn.Normalize(1)(fil)
       fil = nn.View(batchSize, 1, size_image)(fil)
       filters[#filters + 1] = fil
   end

@@ -5,8 +5,8 @@ Torch implementation of DRAW: A Recurrent Neural Network For Image Generation, b
 Implementation not completed. Now results are rather random. 
 
 # TODO:
-- add normalization to filter back
-- use different AttentionRead and AttentionWrite filter size
+- add normalization to filter back: DONE
+- use different AttentionRead and AttentionWrite filter size: DONE
 - get similar results to https://github.com/jbornschein/draw (using same architecture)
 
 # Changes compared to https://github.com/vivanov879/draw
