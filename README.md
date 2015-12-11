@@ -7,6 +7,7 @@ Implementation not completed. Now results are rather random.
 Results:
 -----------------------
 Result for the reconstruction:
+
 ![animation.gif](doc/sequence_reconstruct.gif)
 
 Results for the generation:
