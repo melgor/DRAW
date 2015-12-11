@@ -23,8 +23,10 @@ cmd:text('==>Options')
 
 cmd:text('===>Model And Training Regime')
 cmd:option('-saveFolder',       './Results/',               'folder to save')
+cmd:option('-loadEnc',              '',                         'model to use as weight')
+cmd:option('-loadDec',              '',                         'model to use as weight')
 cmd:option('-LR',                 0.01,                     'learning rate')
-cmd:option('-LRDecay',            0,                        'learning rate decay (in # samples)')
+cmd:option('-LRDecay',            1e-6,                        'learning rate decay (in # samples)')
 cmd:option('-weightDecay',        5e-4,                     'L2 penalty on the weights')
 cmd:option('-momentum',           0.9,                      'momentum')
 cmd:option('-batchSize',          256,                      'batch size')
@@ -60,45 +62,50 @@ if opt.type == 'cuda' then
 end
 
 
---encoder 
-x = nn.Identity()()
-x_error_prev = nn.Identity()()
--- read operator from image
-read_module = READ.create(x, x_error_prev, opt.rnnSize, opt.sizeImage, opt.attenReadSize, opt.batchSize)
--- input = read_input
--- RNN layer which take input and previous state
-input = nn.Identity()()
-lstm_enc = LSTM.create(input, 2 * opt.attenReadSize * opt.attenReadSize, opt.rnnSize)
-
---QSampler
-next_h = nn.Identity()()
-qsampler = QSampler.create(opt.rnnSize, next_h, opt.sizeLayerZ)
---combine everything into encoder
-if opt.type == 'cuda' then 
-  encoder = {read_module:cuda(), lstm_enc:cuda(), qsampler:cuda()}
+if paths.filep(opt.loadEnc) then
+    encoder = torch.load(opt.loadEnc)
+    decoder = torch.load(opt.loadDec)
+    print('==>Loaded Net from: ' .. opt.loadEnc .. '  ' .. opt.loadDec)
 else
-  encoder = {read_module, lstm_enc, qsampler}
+  --encoder 
+  x = nn.Identity()()
+  x_error_prev = nn.Identity()()
+  -- read operator from image
+  read_module = READ.create(x, x_error_prev, opt.rnnSize, opt.sizeImage, opt.attenReadSize, opt.batchSize)
+  -- input = read_input
+  -- RNN layer which take input and previous state
+  input = nn.Identity()()
+  lstm_enc = LSTM.create(input, 2 * opt.attenReadSize * opt.attenReadSize, opt.rnnSize)
+
+  --QSampler
+  next_h = nn.Identity()()
+  qsampler = QSampler.create(opt.rnnSize, next_h, opt.sizeLayerZ)
+  --combine everything into encoder
+  if opt.type == 'cuda' then 
+    encoder = {read_module:cuda(), lstm_enc:cuda(), qsampler:cuda()}
+  else
+    encoder = {read_module, lstm_enc, qsampler}
+  end
+  encoder.name = 'encoder'
+
+  --decoder
+  input = nn.Identity()()
+  lstn_dec = LSTM.create(input, opt.sizeLayerZ, opt.rnnSize)
+
+  next_h = nn.Identity()()
+  prev_canvas = nn.Identity()()
+  write_module = WRITE.create(next_h, prev_canvas, opt.rnnSize, opt.sizeImage, opt.attenWriteSize, opt.batchSize)
+
+  x = nn.Identity()()
+  next_canvas = nn.Identity()()
+  loss_x = LOSS_X.create(x,next_canvas)
+  if opt.type == 'cuda' then
+    decoder = {lstn_dec:cuda(), write_module:cuda(), loss_x:cuda()}
+  else
+    decoder = {lstn_dec, write_module, loss_x}
+  end
+  decoder.name = 'decoder'
 end
-encoder.name = 'encoder'
-
---decoder
-input = nn.Identity()()
-lstn_dec = LSTM.create(input, opt.sizeLayerZ, opt.rnnSize)
-
-next_h = nn.Identity()()
-prev_canvas = nn.Identity()()
-write_module = WRITE.create(next_h, prev_canvas, opt.rnnSize, opt.sizeImage, opt.attenWriteSize, opt.batchSize)
-
-x = nn.Identity()()
-next_canvas = nn.Identity()()
-loss_x = LOSS_X.create(x,next_canvas)
-if opt.type == 'cuda' then
-  decoder = {lstn_dec:cuda(), write_module:cuda(), loss_x:cuda()}
-else
-  decoder = {lstn_dec, write_module, loss_x}
-end
-decoder.name = 'decoder'
-
 
 print ("Model build")
 
@@ -167,6 +174,8 @@ while epoch ~= opt.epoch do
         x = {}
         patch = {}
         read_input = {}
+        e = {}
+        z = {}
         
         local loss = 0
 
